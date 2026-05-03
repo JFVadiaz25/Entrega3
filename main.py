@@ -247,7 +247,9 @@ while True:
         elif codigo_ir == 3:
             estado = 0 if estado == 8 else 8
             print("Dibujo")
-        
+        elif codigo_ir == 8:
+            estado = 0 if estado == 9 else 9
+            print("Mensaje Bienvenida")
         codigo_ir = None
 
     # -------------------------
@@ -260,9 +262,11 @@ while True:
         # MODO 0: BIENVENIDA
         # -------------------------
         if estado == 0:
-            print("Bienvenida")
-            mensaje_bienvenida()
+            print("Inicio")
 
+        elif estado == 9:
+            mensaje_bienvenida()
+            estado = 0
         # -------------------------
         # MODOS: PIXMOB
         # -------------------------
@@ -316,15 +320,19 @@ while True:
         elif estado == 5:
             print("Integrantes")
             mostrar_integrantes()
+            estado = 0
         elif estado == 6:
             print("Icono Bits")
             mostrar_icono()
+            estado = 0
         elif estado == 7:
             print("imagen")
             oled.fill(0)  # Clear the display
             mostrar_hora()
             oled.blit(fbuf, 32, 0)  # Draw the image 
             oled.show()  # Update the display
+            estado = 0
         elif estado == 8:
             print("Dibujo")
             dibujo_geometrico()
+            estado = 0
