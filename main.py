@@ -42,10 +42,19 @@ i2c=SoftI2C(scl=Pin(22), sda=Pin(21))
 oled=SSD1306_I2C(128, 64, i2c)
 
 # ---------------- HORA ----------------
+
 def obtener_hora():
     t = localtime()
-    hora = (t[3] - 5) % 24  # Ajuste UTC-5 Colombia
-    return "{:02d}:{:02d}:{:02d}".format(hora, t[4], t[5])
+    hora = (t[3] - 5) % 24  # UTC-5 Colombia
+    anio = t[0] % 100
+    return "{:02d}:{:02d}:{:02d}{:02d}/{:02d}/{} ".format(
+        hora,
+        t[4],
+        t[5],
+        t[2],  # día
+        t[1],  # mes
+        anio 
+    )
 
 def mostrar_hora():
     global ultimo_segundo
@@ -68,11 +77,11 @@ def scroll_derecha(texto, y):
         if estado != 9 and estado != 5: # If state changed, break the scroll
             return
         
-        oled.fill(0)
-        mostrar_hora()
+        oled.fill_rect(0, 8, 128, 56, 0)
         oled.text(texto, x, y)
         oled.show()
-        sleep(0.02)
+        mostrar_hora()
+        sleep(0.01)
 
 # ---------------- MENSAJE ----------------
 def mensaje_bienvenida():
@@ -259,9 +268,9 @@ def controlRemoto():
         elif codigo_ir == 6:
             estado = 0 if estado == 4 else 4
             print("Vumetro")
-        elif codigo_ir == 0:
+        elif codigo_ir == 8:
             estado = 0 if estado == 5 else 5
-            print("Integrantes")
+            print("Mensaje Bienvenida")
         elif codigo_ir == 1:
             estado = 0 if estado == 6 else 6
             print("Icono Bits")
@@ -271,9 +280,9 @@ def controlRemoto():
         elif codigo_ir == 3:
             estado = 0 if estado == 8 else 8
             print("Dibujo")
-        elif codigo_ir == 8:
+        elif codigo_ir == 0:
             estado = 0 if estado == 9 else 9
-            print("Mensaje Bienvenida")
+            print("Integrantes")
         codigo_ir = None
     
 
