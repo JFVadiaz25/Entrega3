@@ -9,8 +9,8 @@ from ir_rx.nec import NEC_16
 # ------------------------ WIFI ------------------------
 gc.collect()
 print(gc.mem_free())
-SSID = "Pablo"
-PASSWORD = "juan1234"
+SSID = "PAOLA"
+PASSWORD = "4316298a"
 
 def conectar_wifi():
     wlan = network.WLAN(network.STA_IF)
@@ -48,12 +48,26 @@ def obtener_hora():
     return "{:02d}:{:02d}:{:02d}".format(hora, t[4], t[5])
 
 def mostrar_hora():
-    hora = obtener_hora()
-    oled.text(hora, 80, 0)
+    global ultimo_segundo
+
+    t = localtime()
+    segundo_actual = t[5]
+
+    if segundo_actual != ultimo_segundo:
+        ultimo_segundo = segundo_actual
+        oled.fill_rect(0, 0, 80, 10, 0)
+        hora = obtener_hora()
+        oled.text(hora, 0, 0)
+        oled.show()
+
 
 # ---------------- SCROLL DERECHA ----------------
 def scroll_derecha(texto, y):
     for x in range(-len(texto)*8, 128):
+        controlRemoto()
+        if estado != 9 and estado != 5: # If state changed, break the scroll
+            return
+        
         oled.fill(0)
         mostrar_hora()
         oled.text(texto, x, y)
@@ -70,11 +84,7 @@ def mostrar_integrantes():
     scroll_derecha(nombres, 30)
 
 # --- IMAGEN ---
-with open("ferrari.pbm", 'rb') as f:
-    f.readline()  # Skip the first line (P4)
-    f.readline()  # Skip the second line (width and height) 
-    data=bytearray(f.read())  # Read the remaining binary data
-fbuf=framebuf.FrameBuffer(data, 64, 64, framebuf.MONO_HLSB)
+
 
 #---------------- ICONO (matriz 0 y 1) ----------------
 def mostrar_icono():
@@ -146,6 +156,33 @@ mic.atten(ADC.ATTN_11DB) # rango 0–3.6V
 def mapear(valor, in_min, in_max, out_min, out_max):
     return int((valor - in_min) * (out_max - out_min) / (in_max - in_min) + out_min)
 
+def vumetro():
+    muestras = []
+
+    # Tomar exactamente 128 muestras (1 por pixel en X)
+    for _ in range(ANCHO):
+        muestras.append(mic.read())
+
+    # Obtener offset (nivel medio)
+    offset = sum(muestras) // len(muestras)
+
+    oled.fill(0)
+    mostrar_hora()
+    # Dibujar eje central
+    oled.hline(0, CENTRO, ANCHO, 1)
+
+    # Dibujar señal
+    for x in range(ANCHO):
+        valor = muestras[x] - offset  # quitar DC       
+        y = mapear(valor, -1500, 1500, CENTRO + 20, CENTRO - 20)
+        if y < 0:
+            y = 0
+        if y > ALTO - 1:
+            y = ALTO - 1
+
+        oled.pixel(x, y, 1)
+    oled.show()
+    sleep_ms(10)
 # -------------------------
 # CONTROL IR PIXMOB
 # -------------------------
@@ -171,19 +208,23 @@ def convertir_ms(color):
 
     return resultado
 
-def enviar(color):
-    global ir
-    
-    ir.close()
-    for i, duracion in enumerate(color):
-        if i % 2 == 0:  # High signal
-            ledIR.duty(512)  # 50% duty cycle
-        else:  # Low signal
-            ledIR.duty(0)  # Turn off the LED
-        sleep_us(duracion)  # Wait for the specified duration 
 
-    ledIR.duty(0)  # Ensure the LED is off before starting
-    ir = NEC_16(Pin(17, Pin.IN), ir_callback)
+def enviar(color):
+    global rx_activo
+
+    rx_activo = False  # 🚫 apagar recepción
+
+    for i, duracion in enumerate(color):
+        if i % 2 == 0:
+            ledIR.duty(512)
+        else:
+            ledIR.duty(0)
+        sleep_us(duracion)
+
+    ledIR.duty(0)
+
+    sleep_ms(50)  # 🔑 pequeño margen para evitar rebotes
+    rx_activo = True  # ✅ reactivar recepción
 
 #-------------------------
 # CONTROL REMOTO
@@ -192,32 +233,15 @@ codigo_ir = None
 
 def ir_callback(data, addr, ctrl):
     global codigo_ir
+    if not rx_activo:
+        return
     if data < 0:
         return
     codigo_ir = data
 
-ir = NEC_16(Pin(17, Pin.IN), ir_callback)
-
-#VARIABLES INICIALES
-estado = 0  
-tiempo_anterior = ticks_ms()
-intervalo = 80
-
-color10 = convertir_ms(base_color_effects["GREEN_4"])
-color56 = convertir_ms(base_color_effects["REDORANGE"])
-weird = convertir_ms(special_effects["WEIRD_110"])
-
-ANCHO = 128
-ALTO = 64
-CENTRO = ALTO // 2
-
-
-while True:
-    ahora = ticks_ms()
-
-    # -------------------------
-    # CONTROL REMOTO
-    # -------------------------
+ir = NEC_16(Pin(17, Pin.IN, Pin.PULL_UP), ir_callback)
+def controlRemoto():
+    global estado, codigo_ir
     if codigo_ir is not None:
 
         print("Boton:", codigo_ir)
@@ -251,7 +275,27 @@ while True:
             estado = 0 if estado == 9 else 9
             print("Mensaje Bienvenida")
         codigo_ir = None
+    
 
+#VARIABLES INICIALES
+estado = 0  
+tiempo_anterior = ticks_ms()
+intervalo = 80
+inicio_vumetro=0
+color10 = convertir_ms(base_color_effects["GREEN_4"])
+color56 = convertir_ms(base_color_effects["REDORANGE"])
+weird = convertir_ms(special_effects["WEIRD_110"])
+
+ANCHO = 128
+ALTO = 64
+CENTRO = ALTO // 2
+
+ultimo_segundo = -1
+contador_gc = 0
+rx_activo=True
+while True:
+    ahora = ticks_ms()
+    controlRemoto()
     # -------------------------
     # ANIMACIÓN
     # -------------------------
@@ -262,8 +306,8 @@ while True:
         # MODO 0: BIENVENIDA
         # -------------------------
         if estado == 0:
-            print("Inicio")
-
+            mostrar_hora()
+            sleep_ms(200)
         elif estado == 9:
             mensaje_bienvenida()
             estado = 0
@@ -285,37 +329,16 @@ while True:
         # -------------------------
         # MODO: VUMETRO
         # -------------------------
-        elif estado == 4:
-            muestras = []
-
-            # Tomar exactamente 128 muestras (1 por pixel en X)
-            for _ in range(ANCHO):
-                muestras.append(mic.read())
-            # Obtener offset (nivel medio)
-            offset = sum(muestras) // len(muestras)
-             
-            oled.fill(0)
-            mostrar_hora()
-            # Dibujar eje central
-            oled.hline(0, CENTRO, ANCHO, 1)
-
-            # Dibujar señal
-            for x in range(ANCHO):
-                valor = muestras[x] - offset  # quitar DC
-                
-                # Escalar (ajusta estos valores)
-                y = mapear(valor, -1500, 1500, CENTRO + 20, CENTRO - 20)
-
-                # Limitar dentro de pantalla
-                if y < 0:
-                    y = 0
-                if y > ALTO - 1:
-                    y = ALTO - 1
-
-                oled.pixel(x, y, 1)
-
-            oled.show()
-            sleep(0.05)
+        if estado == 4:
+            if inicio_vumetro == 0:
+                inicio_vumetro = ticks_ms()  # registra cuándo empezó
+            
+            if ticks_diff(ticks_ms(), inicio_vumetro) > 5000:  # 15 segundos
+                inicio_vumetro = 0  # resetea para la próxima vez
+                estado = 0
+            else:
+                vumetro()
+            continue
 
         elif estado == 5:
             print("Integrantes")
@@ -328,11 +351,22 @@ while True:
         elif estado == 7:
             print("imagen")
             oled.fill(0)  # Clear the display
-            mostrar_hora()
-            oled.blit(fbuf, 32, 0)  # Draw the image 
+            with open("ferrari.pbm", 'rb') as f:
+                f.readline()  # Skip the first line (P4)
+                f.readline()  # Skip the second line (width and height) 
+                data=bytearray(f.read())  # Read the remaining binary data
+            fbuf=framebuf.FrameBuffer(data, 64, 64, framebuf.MONO_HLSB)
+            oled.blit(fbuf, 64, 0)  # Draw the image 
             oled.show()  # Update the display
+            del data
+            del fbuf
             estado = 0
+            gc.collect()
         elif estado == 8:
             print("Dibujo")
             dibujo_geometrico()
             estado = 0
+    contador_gc += 1
+    if contador_gc > 200:
+        gc.collect()
+        contador_gc = 0
