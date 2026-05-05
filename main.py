@@ -74,9 +74,7 @@ def mostrar_hora():
 def scroll_derecha(texto, y):
     for x in range(-len(texto)*8, 128):
         controlRemoto()
-        if estado != 9 and estado != 5: # If state changed, break the scroll
-            return
-        
+
         oled.fill_rect(0, 8, 128, 56, 0)
         oled.text(texto, x, y)
         oled.show()
@@ -97,7 +95,7 @@ def mostrar_integrantes():
 
 #---------------- ICONO (matriz 0 y 1) ----------------
 def mostrar_icono():
-    oled.fill(0)
+    oled.fill_rect(0, 8, 128, 56, 0)
     mostrar_hora()
 
     icono = [
@@ -136,22 +134,24 @@ def mostrar_icono():
 
 # ---------------- FIGURAS GEOMÉTRICAS ----------------
 def dibujo_geometrico():
-    oled.fill(0)
+    oled.fill_rect(0, 8, 128, 56, 0)  
     mostrar_hora()
 
-    # Rectángulo
-    oled.rect(10, 10, 50, 30, 1)
+    # Cuadrado frontal
+    x = 30
+    y = 25
+    size = 25
+    oled.rect(x, y, size, size, 1)
 
-    # Rectángulo relleno
-    oled.fill_rect(70, 10, 40, 20, 1)
+    dx = 10
+    dy = -10
 
-    # Líneas
-    oled.line(0, 63, 127, 0, 1)
-    oled.line(0, 0, 127, 63, 1)
+    oled.rect(x + dx, y + dy, size, size, 1)
 
-    # Líneas horizontales
-    for y in range(40, 60, 3):
-        oled.line(0, y, 127, y, 1)
+    oled.line(x, y, x + dx, y + dy, 1)
+    oled.line(x + size, y, x + size + dx, y + dy, 1)
+    oled.line(x, y + size, x + dx, y + size + dy, 1)
+    oled.line(x + size, y + size, x + size + dx, y + size + dy, 1)
 
     oled.show()
 
@@ -160,7 +160,7 @@ def dibujo_geometrico():
 # -------------------------
 mic = ADC(Pin(35))       # ADC en GPIO35
 mic.atten(ADC.ATTN_11DB) # rango 0–3.6V
-#mic.width(ADC.WIDTH_12BIT) # resolución 12 bits (0-4095)
+
 
 def mapear(valor, in_min, in_max, out_min, out_max):
     return int((valor - in_min) * (out_max - out_min) / (in_max - in_min) + out_min)
@@ -175,8 +175,7 @@ def vumetro():
     # Obtener offset (nivel medio)
     offset = sum(muestras) // len(muestras)
 
-    oled.fill(0)
-    mostrar_hora()
+    oled.fill_rect(0, 8, 128, 56, 0)
     # Dibujar eje central
     oled.hline(0, CENTRO, ANCHO, 1)
 
@@ -190,6 +189,7 @@ def vumetro():
             y = ALTO - 1
 
         oled.pixel(x, y, 1)
+    mostrar_hora()
     oled.show()
     sleep_ms(10)
 # -------------------------
@@ -221,7 +221,7 @@ def convertir_ms(color):
 def enviar(color):
     global rx_activo
 
-    rx_activo = False  # 🚫 apagar recepción
+    rx_activo = False  # apagar recepción
 
     for i, duracion in enumerate(color):
         if i % 2 == 0:
@@ -232,8 +232,8 @@ def enviar(color):
 
     ledIR.duty(0)
 
-    sleep_ms(50)  # 🔑 pequeño margen para evitar rebotes
-    rx_activo = True  # ✅ reactivar recepción
+    sleep_ms(50) 
+    rx_activo = True  #  reactivar recepción
 
 #-------------------------
 # CONTROL REMOTO
@@ -297,7 +297,7 @@ weird = convertir_ms(special_effects["WEIRD_110"])
 
 ANCHO = 128
 ALTO = 64
-CENTRO = ALTO // 2
+CENTRO = ALTO // 2 + 10
 
 ultimo_segundo = -1
 contador_gc = 0
@@ -342,9 +342,10 @@ while True:
             if inicio_vumetro == 0:
                 inicio_vumetro = ticks_ms()  # registra cuándo empezó
             
-            if ticks_diff(ticks_ms(), inicio_vumetro) > 5000:  # 15 segundos
+            if ticks_diff(ticks_ms(), inicio_vumetro) > 15000:  # 15 segundos
                 inicio_vumetro = 0  # resetea para la próxima vez
                 estado = 0
+                gc.collect()
             else:
                 vumetro()
             continue
@@ -359,7 +360,7 @@ while True:
             estado = 0
         elif estado == 7:
             print("imagen")
-            oled.fill(0)  # Clear the display
+            oled.fill_rect(0, 8, 128, 56, 0)  # Clear the display
             with open("ferrari.pbm", 'rb') as f:
                 f.readline()  # Skip the first line (P4)
                 f.readline()  # Skip the second line (width and height) 
@@ -373,6 +374,7 @@ while True:
             gc.collect()
         elif estado == 8:
             print("Dibujo")
+
             dibujo_geometrico()
             estado = 0
     contador_gc += 1
